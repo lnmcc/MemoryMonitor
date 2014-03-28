@@ -100,6 +100,22 @@ void MemMonitor::initScreen() {
     refresh();
 }
 
+void* MemMonitor::analyseMsg(void* arg) {
+    MsgEntity recvMsg;
+    map<void*, MemStatus>::iterator map_iter;
+
+    while(true) {
+        if(msgrev(m_msgQueue, &recvMsg, sizeof(recvMsg.OP), MSG_TYPE, 0) != -1) {
+
+
+        }
+    }
+}
+
+void* MemMonitor::display(void* arg) {
+    
+} 
+
 int main(int argc, char *argv[]) {
     int ch;
     char msgPath[FILENAME_LEN];

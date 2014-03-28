@@ -31,7 +31,7 @@ private:
     int m_msgQueue;
     char* m_msgPath;
     pid_t m_pid;
-    map<void*, Memstatus> m_mapMemStatus;
+    map<void*, MemStatus> m_mapMemStatus;
     list<Memstatus> m_listMemStatus;
     unsigned long m_totalLeak;
     unsigned int m_interval;
