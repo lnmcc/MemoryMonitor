@@ -17,6 +17,12 @@ public:
     virtual ~MemMonitor();
 
     void start();
+    int getMsgQueue();
+    map<void*, MemStatus>& getStatusMap();
+    list<MemStatus>& getLeakMemList();
+    void lock(); 
+    void unlock();
+    void addLeak(unsigned long leakByte);
 
 private:
     static void* analyseMsg(void* arg);
@@ -32,10 +38,11 @@ private:
     char* m_msgPath;
     pid_t m_pid;
     map<void*, MemStatus> m_mapMemStatus;
-    list<Memstatus> m_listMemStatus;
+    list<Memstatus> m_listLeakMem;
     unsigned long m_totalLeak;
     unsigned int m_interval;
     WINDOW *win;
+    pthread_mutex_t m_mapMutex;
 };
 
 #endif

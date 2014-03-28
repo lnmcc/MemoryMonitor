@@ -17,10 +17,11 @@ MemMonitor::MemMonitor(char* msgPath, pid_t pid) {
     m_msgQueue = -1;
     m_totalLeak = 0;
     m_interval = 1;
+    pthread_mutex_init(&m_mapMutex, NULL);
 }
 
 MemMonitor::~MemMonitor() {
-
+    pthread_mutex_destroy(&m_mapMutex);
 }
 
 void MemMonitor::parseError(int err) {
@@ -100,16 +101,63 @@ void MemMonitor::initScreen() {
     refresh();
 }
 
+map<void*, MemStatus>& MemMonitor::getStatusMap() {
+    return m_mapMemStatus;
+}
+
+int MemMonitor::getMsgQueue() {
+    return m_msgQueue;
+}
+
+int list<MemStatus>& MemMonitor::getLeakMemList() {
+    return m_listLeakMem;
+}
+
+void MemMonitor::lock() {
+    pthread_mutex_lock(&m_mapMutex);
+}
+
+void MemMonitor::unlock() {
+    pthread_mutex_unlock(&m_mapMutex);
+}
+
+void MemMonitor::addLeak(unsigned long leakByte) {
+    m_totalLeak += leakByte;
+}
+
 void* MemMonitor::analyseMsg(void* arg) {
+    MemMonitor* monitor = (MemMonitor*)arg;
+    int msgQueue = monitor->getMsgQueue();
+    map<void, MemStatus> memStatusMap = monitor->getStatusMap();
+    list<MemStatus> listLeakMem = monitor->getLeakMemList();
     MsgEntity recvMsg;
     map<void*, MemStatus>::iterator map_iter;
+    list<memStatus>::iterator list_iter;
 
     while(true) {
-        if(msgrev(m_msgQueue, &recvMsg, sizeof(recvMsg.OP), MSG_TYPE, 0) != -1) {
+        if(msgrev(msgQueue, &recvMsg, sizeof(recvMsg.OP), MSG_TYPE, 0) != -1) {
+            map_iter = memStatusMap.find(recvMsg.OP.address);
 
-
+            if(map_iter != memStatusMap.end()) {
+                monitor->lock();  
+                if(recvMsg.OP.type == ARRAY_NEW || recvMsg.OP.type == SINGLE_NEW) {
+                    monitor->addLeak(recvMsg.OP.size); 
+                    map_iter->second.size += recvMsg.OP.size;
+                    map_iter->second.type = recvMsg.OP.type;
+                }
+                if(recvMsg.OP.type == SINGLE_DELETE || recvMsg.OP.type == ARRAY_DELETE) {
+                    if(recvMsg.OP.type == SINGLE_DELETE && map_iter->second.type == ARRAY_NEW) {
+                        for(list_iter = listLeakMem.begin(); list_iter != listLeakMem.end(); list_iter++) {
+                            if(!strcasecmp(list_iter->fileName, map_iter->second.fileName) && 
+                               (list_iter->LineNum == map_iter->seond->LineNum)) {
+                                    
+                               }
+                        }
+                    }
+                }
+            }
         }
-    }
+    } //end while
 }
 
 void* MemMonitor::display(void* arg) {
