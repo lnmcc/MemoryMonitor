@@ -10,18 +10,20 @@
 #include <time.h>
 #include "mem_monitor.h"
 
-MemMonitor::MemMonitor(char* msgPath, pid_t pid) {
+MemMonitor::MemMonitor(char* msgPath, pid_t pid, int interval) {
     m_msgPath = msgPath;
     m_pid = pid;
+    m_fp = NULL;
     win = NULL; 
     m_msgQueue = -1;
     m_totalLeak = 0;
     m_interval = 1;
     pthread_mutex_init(&m_mapMutex, NULL);
-    m_interval = 1;
+    m_interval = interval;
 }
 
 MemMonitor::~MemMonitor() {
+    fclose(m_fp);
     pthread_mutex_destroy(&m_mapMutex);
 }
 
@@ -55,10 +57,9 @@ void MemMonitor::parseError(int err) {
 }
 
 void MemMonitor::start() {
-    FILE *fp = NULL;
     key_t key = -1;
 
-    if((fp = fopen(m_msgPath, "r")) == NULL) {
+    if((m_fp = fopen(m_msgPath, "r")) == NULL) {
         cout << "MemMonitor: Cannot not open message queue file: " << m_msgPath << endl;
         exit(1);
     }
@@ -66,11 +67,24 @@ void MemMonitor::start() {
     key = ftok(m_msgPath, 'a');
     if((m_msgQueue = msgget(key, 0)) == -1) {
         parseError(errno);
-        fclose(fp);
+        fclose(m_fp);
         exit(1);
     }
 
     initScreen();
+    
+    pthread_create(&m_analyse_pid, NULL, analyseRoutine, this);
+    pthread_create(&m_disp_pid, NULL, displayRoutine, this);
+}
+
+void* MemMonitor::analyseRoutine(void* arg) {
+    MemMonitor* mm = (MemMonitor*)arg;
+    mm->analyseMsg();
+}
+
+void* MemMonitor::displayRoutine(void* arg) {
+    MemMonitor* mm = (MemMonitor*)arg;
+    mm->display();
 }
 
 void MemMonitor::warningWin(char* msg) {
@@ -337,13 +351,14 @@ int main(int argc, char *argv[]) {
             pid = atol(argv[optind]);
             break;
         default:
-                break;
+            break;
         }	
     }
 
     sprintf(msgPath, "/tmp/mem_tracer%d", pid);
 
-    MemMonitor monitor(msgPath, pid);
-    
+    MemMonitor monitor(msgPath, pid, 1);
+    monitor.start();    
+
     return 0;
 }

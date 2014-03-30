@@ -16,20 +16,27 @@ public:
     MemMonitor(char* msgPath, pid_t pid, int interval);
     virtual ~MemMonitor();
 
-private:
+    void start();
     void analyseMsg();
     void display();
-    char* parseError(int err);
 
 private:
+    char* parseError(int err);
     void initScreen();
     void warningWin(char* msg);
     void parseError(int err);
 
 private:
+    static void* analyseRoutine(void* arg);
+    static void* displayRoutine(void* arg);
+
+private:
     int m_msgQueue;
     char* m_msgPath;
+    FILE* m_fp;
     pid_t m_pid;
+    pthread_t m_disp_pid;
+    pthread_t m_analyse_pid;
     map<void*, MemStatus> m_mapMemStatus;
     list<Memstatus> m_listLeakMem;
     unsigned long m_totalLeak;
