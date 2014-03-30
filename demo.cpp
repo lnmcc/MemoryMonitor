@@ -25,10 +25,12 @@ private:
 class TestObj {
 public:	
 	TestObj() { 
+        cout << "TestObj::TestObj" << endl;
         a = new A[1024];
     }
 
     virtual ~TestObj() {
+        cout << "TestObj::~TestObj" << endl;
         delete[] a;
     };
 
@@ -38,9 +40,7 @@ private:
     A *a; 
 };
 
-
 int main() {
-
     list<TestObj*> lst;
     lst.clear();
 
