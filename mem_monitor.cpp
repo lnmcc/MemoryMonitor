@@ -18,6 +18,7 @@ MemMonitor::MemMonitor(char* msgPath, pid_t pid) {
     m_totalLeak = 0;
     m_interval = 1;
     pthread_mutex_init(&m_mapMutex, NULL);
+    m_interval = 1;
 }
 
 MemMonitor::~MemMonitor() {
@@ -196,7 +197,7 @@ void MemMonitor::analyseMsg() {
                 char *prompt = "You delete a pointer not traced!";
                 warningWin(prompt);
                 endwin();
-                break;    
+                break;  //TODO 
            }
 
            if(recvMsg.OP.type == SINGLE_DELETE && map_iter->second.type == SINGLE_NEW) {
@@ -248,7 +249,73 @@ void MemMonitor::analyseMsg() {
 }
 
 void MemMonitor::display() {
+    int line = 0;
+    time_t sysTime;
+    list<MemStatus> disp_list;
+    map<void*, MemStatus>::iterator map_iter;
+    list<MemStatus>::iterator list_iter, disp_iter;
+
+    while(true) {
+        disp_list.clear();
+        time(sysTime);
+        pthread_mutex_lock(&m_mapMutex);
+
+        for(map_iter = m_mapMemStatus.begin(); map_iter != m_mapMemStatus.end(); map_iter++) {
+            for(disp_iter = disp_list.begin(); disp_iter != disp_list.end(); disp_iter++) {
+                if(!strcasecmp(map_iter->second.fileName, disp_iter->fileName)
+                   && map_iter->second.lineNum == disp_iter->lineNum) {
+                       disp_iter->totalSize += map_iter->second.totalSize;
+                       break;
+                }
+            } // end for
+
+            if(disp_iter == disp_list.end()) {
+                disp_list.push_back(map_iter->second); 
+            }
+        } // end for
     
+        for(list_iter = m_listLeakMem.begin(); list_iter != m_listLeakMem.end(); list_iter++) {
+            for(disp_iter = disp_list.begin(); disp_iter != disp_list.end(); disp_iter++) {
+                if(!strcasecmp(list_iter->fileName, disp_iter->fileName) 
+                  && list_iter->lineNum == disp_iter->lineNum) {
+                       disp_iter->totalSize += list_iter->totalSize;
+                       break;
+                  }
+            } // end for
+
+            if(disp_iter == disp_list.end()) {
+                disp_list.push_back(*list_iter);
+            }
+        } //end for
+
+        if(m_totalLeak != 0) {
+            erase(); 
+
+            mvprintw(line++, 0, "ProcessID:%d, Interval:%d, Time:%s", m_pid, m_interval, ctime(&sysTime));
+            mvprintw(line++, 0, "");		
+            mvprintw(line++, 0, "");
+
+            attrset(A_REVERSE);
+            mvprintw(line++, 0, "%-24s%-12s%-24s%-10s\n",
+                     "FILE", "LINE", "Allocated(Byte)", "Percent(%)");
+            attrset(A_NORMAL);
+            refresh();
+
+            for (disp_iter = disp_list.begin(); disp_iter != disp_list.end(); disp_iter++) {
+                mvprintw(line++, 0, "%-24s%-12d%-24d%2.2f%%",
+                         disp_iter->fileName, disp_iter->lineNum,
+                         disp_iter->totalSize,
+                         (double) disp_iter->totalSize * 100 / m_totalLeak);
+
+            }
+            mvprintw(line++, 0, "");
+            mvprintw(line++, 0, "Total: %d Bytes(%0.1fKB = %0.1fMB)",
+                     m_totalLeak, (double)m_totalLeak / 1024, (double) m_totalLeak / 1024 / 1024 );
+
+            refresh(); 
+        }
+
+    }// end while
 } 
 
 int main(int argc, char *argv[]) {

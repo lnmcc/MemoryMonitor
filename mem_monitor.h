@@ -13,7 +13,7 @@ using namespace std;
 
 class  MemMonitor {
 public:
-    MemMonitor(char* msgPath, pid_t pid);
+    MemMonitor(char* msgPath, pid_t pid, int interval);
     virtual ~MemMonitor();
 
 private:
@@ -36,6 +36,7 @@ private:
     unsigned int m_interval;
     WINDOW *win;
     pthread_mutex_t m_mapMutex;
+    int m_interval;
 };
 
 #endif
