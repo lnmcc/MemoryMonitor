@@ -125,44 +125,93 @@ void MemMonitor::addLeak(unsigned long leakByte) {
     m_totalLeak += leakByte;
 }
 
-void* MemMonitor::analyseMsg(void* arg) {
-    MemMonitor* monitor = (MemMonitor*)arg;
-    int msgQueue = monitor->getMsgQueue();
-    map<void*, MemStatus> memStatusMap = monitor->getStatusMap();
-    list<MemStatus> listLeakMem = monitor->getLeakMemList();
+char* MemMonitor::parseError(int err) {
+      char* prompt = NULL;
+      switch(err) {
+        case EACCES:
+            prompt = "EACCES";
+            break;
+        case  EAGAIN:
+            prompt = "EAGAIN";
+            break;
+        case EFAULT:
+            prompt = "EFAULT";
+            break;
+        case EIDRM:
+            prompt = "EIDRM";
+            break; 
+        case EINTR:
+            prompt = "EINTR";
+            break;
+        case EINVAL:
+            prompt = "EINVAL";
+            break;
+        case ENOMEM:
+            prompt = "ENOMEM";
+            break;
+        case E2BIG:
+            prompt = "E2BIG";
+            break;
+        case ENOMSG:
+            prompt = "ENOMSG";
+            break;
+        default:
+            prompt = "UnKnown Error Code";
+            break;
+    }
+    return prompt;
+}
+
+void MemMonitor::analyseMsg() {
     MsgEntity recvMsg;
     map<void*, MemStatus>::iterator map_iter;
     list<MemStatus>::iterator list_iter;
 
     while(true) {
-        if(msgrev(msgQueue, &recvMsg, sizeof(recvMsg.OP), MSG_TYPE, 0) != -1) {
-            map_iter = memStatusMap.find(recvMsg.OP.address);
-
-            if(map_iter != memStatusMap.end()) {
-                monitor->lock();  
-                if(recvMsg.OP.type == ARRAY_NEW || recvMsg.OP.type == SINGLE_NEW) {
-                    monitor->addLeak(recvMsg.OP.size); 
-                    map_iter->second.totalSize += recvMsg.OP.size;
-                    map_iter->second.type = recvMsg.OP.type;
-                }
-
-                if(recvMsg.OP.type == SINGLE_DELETE || recvMsg.OP.type == ARRAY_DELETE) {
-                    if(recvMsg.OP.type == SINGLE_DELETE && map_iter->second.type == ARRAY_NEW) {
-                        for(list_iter = listLeakMem.begin(); list_iter != listLeakMem.end(); list_iter++) {
-                            if(!strcasecmp(list_iter->fileName, map_iter->second.fileName) && 
-                               (list_iter->lineNum == map_iter->second.lineNum)) {
-                                    list_iter->totalSize += map_iter->second.totalSize;   
-
-                               }
-                        }
-                    }
-                }
+        if(msgrev(m_msgQueue, &recvMsg, sizeof(recvMsg.OP), MSG_TYPE, 0) == -1) {
+            char *prompt = NULL;
+            prompt = parseError(errno);
+            warningWin(prompt);
+            endwin();
+            break;
+        } // end if
+        if(recvMsg.OP.type == SINGLE_NEW || recvMsg.OP.type == ARRAY_NEW) {
+            map_iter = m_mapMemStatus.find(recvMsg.OP.address);
+            if(map_iter == m_mapMemStatus.end()) {
+                MemStatus memStatus;
+                memcpy(&memStatus, 0x0, sizeof(MemStatus));
+                m_totalLeak += recvMsg.OP.size;
+                strncpy(memStatus.fileName, recvMsg.OP.fileName, FILENAME_LEN - 1);
+                memStatus.lineNum = recvMsg.OP.lineNum; 
+                memStatus.address = recvMsg.OP.address;
+                memStatus.type = recvMsg.OP.type;
+                memStatus.totalSize += recvMsg.OP.size;
+                m_mapMemStatus.insert(pair<void*, MemStatus>(recvMsg.OP.address, memStatus));
+            } else {
+                m_totalLeak += recvMsg.OP.size;
+                map_iter->second.totalSize += recvMsg.OP.size;
+                map_iter->second.type = recvMsg.OP.type;
             }
-        }
+       } // end if
+
+       if(recvMsg.OP.type == SINGLE_DELETE || recvMsg.OP.type == ARRAY_DELETE) {
+           map_iter = m_mapMemStatus.find(recvMsg.OP.address);
+           if(map_iter == m_mapMemStatus.end()) {
+                const char *prompt = "You delete a pointer not traced!";
+                warningWin(prompt);
+                endwin();
+                break;    
+           }
+           if(recvMsg.OP.type == SINGLE_DELETE && map_iter->second.type == SINGLE_NEW) {
+                
+           }
+            
+       }// end if
+
     } //end while
 }
 
-void* MemMonitor::display(void* arg) {
+void MemMonitor::display() {
     
 } 
 

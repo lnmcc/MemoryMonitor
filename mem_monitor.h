@@ -25,8 +25,9 @@ public:
     void addLeak(unsigned long leakByte);
 
 private:
-    static void* analyseMsg(void* arg);
-    static void* display(void* arg);
+    void analyseMsg();
+    void display();
+    char* parseError(int err);
 
 private:
     void initScreen();
