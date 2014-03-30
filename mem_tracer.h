@@ -29,7 +29,7 @@ public:
 	bool erase(void* address, Operation *OP);
 
 private:
-    void parseError(char* file, int lineNum, int err) {
+    void parseError(char* file, int lineNum, int err); 
 
 private:
 	map<void*, Operation> m_mapOP;

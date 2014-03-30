@@ -27,34 +27,6 @@ MemMonitor::~MemMonitor() {
     pthread_mutex_destroy(&m_mapMutex);
 }
 
-void MemMonitor::parseError(int err) {
-	switch(err) {
-	case EAGAIN:
-		cerr << "---EAGAIN---" << endl;
-		break;
-	case EACCES:
-		cerr << "---EACCES---" << endl;
-		break;
-	case EFAULT:
-		cerr << "---EFAULT---" << endl;
-		break;
-	case EIDRM:
-		cerr << "---EIDRM---" << endl;
-		break;
-	case EINTR:
-		cerr << "---EINTR---" << endl;
-		break;
-	case EINVAL:
-		cerr << "---EINVAL---" << endl;
-		break;
-	case ENOMEM:
-		cerr << "---ENOMEM---" << endl;
-		break;
-	default:
-	    cerr << "---Undefined Error---" << endl;
-		break;	
-	}
-}
 
 void MemMonitor::start() {
     key_t key = -1;
@@ -120,33 +92,43 @@ char* MemMonitor::parseError(int err) {
       char* prompt = NULL;
       switch(err) {
         case EACCES:
+		    cerr << "---EACCES---" << endl;
             prompt = "EACCES";
             break;
         case  EAGAIN:
+		    cerr << "---EAGAIN---" << endl;
             prompt = "EAGAIN";
             break;
         case EFAULT:
+		    cerr << "---EFAULT---" << endl;
             prompt = "EFAULT";
             break;
         case EIDRM:
+		    cerr << "---EIDRM---" << endl;
             prompt = "EIDRM";
             break; 
         case EINTR:
+		    cerr << "---EINTR---" << endl;
             prompt = "EINTR";
             break;
         case EINVAL:
+		    cerr << "---EINVAL---" << endl;
             prompt = "EINVAL";
             break;
         case ENOMEM:
+		    cerr << "---ENOMEM---" << endl;
             prompt = "ENOMEM";
             break;
         case E2BIG:
+		    cerr << "---E2BIG---" << endl;
             prompt = "E2BIG";
             break;
         case ENOMSG:
+		    cerr << "---ENOMSG---" << endl;
             prompt = "ENOMSG";
             break;
         default:
+	        cerr << "---Undefined Error---" << endl;
             prompt = "UnKnown Error Code";
             break;
     }
@@ -159,7 +141,7 @@ void MemMonitor::analyseMsg() {
     list<MemStatus>::iterator list_iter;
 
     while(true) {
-        if(msgrev(m_msgQueue, &recvMsg, sizeof(recvMsg.OP), MSG_TYPE, 0) == -1) {
+        if(msgrcv(m_msgQueue, &recvMsg, sizeof(recvMsg.OP), MSG_TYPE, 0) == -1) {
             char *prompt = NULL;
             prompt = parseError(errno);
             warningWin(prompt);
@@ -271,7 +253,7 @@ void MemMonitor::display() {
 
     while(true) {
         disp_list.clear();
-        time(sysTime);
+        time(&sysTime);
         pthread_mutex_lock(&m_mapMutex);
 
         for(map_iter = m_mapMemStatus.begin(); map_iter != m_mapMemStatus.end(); map_iter++) {

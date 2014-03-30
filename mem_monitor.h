@@ -24,7 +24,6 @@ private:
     char* parseError(int err);
     void initScreen();
     void warningWin(char* msg);
-    void parseError(int err);
 
 private:
     static void* analyseRoutine(void* arg);
@@ -38,12 +37,11 @@ private:
     pthread_t m_disp_pid;
     pthread_t m_analyse_pid;
     map<void*, MemStatus> m_mapMemStatus;
-    list<Memstatus> m_listLeakMem;
+    list<MemStatus> m_listLeakMem;
     unsigned long m_totalLeak;
     unsigned int m_interval;
     WINDOW *win;
     pthread_mutex_t m_mapMutex;
-    int m_interval;
 };
 
 #endif

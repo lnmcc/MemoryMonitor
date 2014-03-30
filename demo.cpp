@@ -38,14 +38,6 @@ private:
     A *a; 
 };
 
-void* callback(void *) {
-   int i = 0; 
-    while(i < 100) {
-        new char[1024];
-        sleep(1);
-    }
-
-}
 
 int main() {
 
