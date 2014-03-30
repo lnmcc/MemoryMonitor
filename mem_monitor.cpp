@@ -128,11 +128,11 @@ void MemMonitor::addLeak(unsigned long leakByte) {
 void* MemMonitor::analyseMsg(void* arg) {
     MemMonitor* monitor = (MemMonitor*)arg;
     int msgQueue = monitor->getMsgQueue();
-    map<void, MemStatus> memStatusMap = monitor->getStatusMap();
+    map<void*, MemStatus> memStatusMap = monitor->getStatusMap();
     list<MemStatus> listLeakMem = monitor->getLeakMemList();
     MsgEntity recvMsg;
     map<void*, MemStatus>::iterator map_iter;
-    list<memStatus>::iterator list_iter;
+    list<MemStatus>::iterator list_iter;
 
     while(true) {
         if(msgrev(msgQueue, &recvMsg, sizeof(recvMsg.OP), MSG_TYPE, 0) != -1) {
@@ -142,15 +142,17 @@ void* MemMonitor::analyseMsg(void* arg) {
                 monitor->lock();  
                 if(recvMsg.OP.type == ARRAY_NEW || recvMsg.OP.type == SINGLE_NEW) {
                     monitor->addLeak(recvMsg.OP.size); 
-                    map_iter->second.size += recvMsg.OP.size;
+                    map_iter->second.totalSize += recvMsg.OP.size;
                     map_iter->second.type = recvMsg.OP.type;
                 }
+
                 if(recvMsg.OP.type == SINGLE_DELETE || recvMsg.OP.type == ARRAY_DELETE) {
                     if(recvMsg.OP.type == SINGLE_DELETE && map_iter->second.type == ARRAY_NEW) {
                         for(list_iter = listLeakMem.begin(); list_iter != listLeakMem.end(); list_iter++) {
                             if(!strcasecmp(list_iter->fileName, map_iter->second.fileName) && 
-                               (list_iter->LineNum == map_iter->seond->LineNum)) {
-                                    
+                               (list_iter->lineNum == map_iter->second.lineNum)) {
+                                    list_iter->totalSize += map_iter->second.totalSize;   
+
                                }
                         }
                     }
