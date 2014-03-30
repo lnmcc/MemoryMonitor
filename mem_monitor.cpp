@@ -101,30 +101,6 @@ void MemMonitor::initScreen() {
     refresh();
 }
 
-map<void*, MemStatus>& MemMonitor::getStatusMap() {
-    return m_mapMemStatus;
-}
-
-int MemMonitor::getMsgQueue() {
-    return m_msgQueue;
-}
-
-int list<MemStatus>& MemMonitor::getLeakMemList() {
-    return m_listLeakMem;
-}
-
-void MemMonitor::lock() {
-    pthread_mutex_lock(&m_mapMutex);
-}
-
-void MemMonitor::unlock() {
-    pthread_mutex_unlock(&m_mapMutex);
-}
-
-void MemMonitor::addLeak(unsigned long leakByte) {
-    m_totalLeak += leakByte;
-}
-
 char* MemMonitor::parseError(int err) {
       char* prompt = NULL;
       switch(err) {
@@ -174,7 +150,10 @@ void MemMonitor::analyseMsg() {
             warningWin(prompt);
             endwin();
             break;
-        } // end if
+        } 
+
+        pthread_mutex_lock(&m_mapMutex); 
+
         if(recvMsg.OP.type == SINGLE_NEW || recvMsg.OP.type == ARRAY_NEW) {
             map_iter = m_mapMemStatus.find(recvMsg.OP.address);
             if(map_iter == m_mapMemStatus.end()) {
@@ -189,24 +168,81 @@ void MemMonitor::analyseMsg() {
                 m_mapMemStatus.insert(pair<void*, MemStatus>(recvMsg.OP.address, memStatus));
             } else {
                 m_totalLeak += recvMsg.OP.size;
+                MemStatus memStatus;
+                memcpy(&memStatus, 0x0, sizeof(MemStatus));
+                strncpy(memStatus.fileName, map_iter->second.fileName, FILENAME_LEN - 1);
+                memStatus.lineNum = map_iter->second.lineNum;
+                memStatus.address = map_iter->second.address;
+                memStatus.totalSize = map_iter->second.totalSize;
+                memStatus.type = map_iter->second.type;
+                m_listLeakMem.push_back(memStatus);
+
                 map_iter->second.totalSize += recvMsg.OP.size;
                 map_iter->second.type = recvMsg.OP.type;
+                strncpy(map_iter->second.fileName, recvMsg.OP.fileName, FILENAME_LEN - 1);
+                map_iter->second.lineNum = recvMsg.OP.lineNum;
             }
-       } // end if
+
+            pthread_mutex_unlock(&m_mapMutex);
+            continue;
+        } // end if: recv new or array new
 
        if(recvMsg.OP.type == SINGLE_DELETE || recvMsg.OP.type == ARRAY_DELETE) {
            map_iter = m_mapMemStatus.find(recvMsg.OP.address);
            if(map_iter == m_mapMemStatus.end()) {
-                const char *prompt = "You delete a pointer not traced!";
+
+                pthread_mutex_unlock(&m_mapMutex);
+
+                char *prompt = "You delete a pointer not traced!";
                 warningWin(prompt);
                 endwin();
                 break;    
            }
+
            if(recvMsg.OP.type == SINGLE_DELETE && map_iter->second.type == SINGLE_NEW) {
+                m_totalLeak -= recvMsg.OP.size;
+                m_mapMemStatus.erase(map_iter);
                 
+                pthread_mutex_unlock(&m_mapMutex);
+                continue;
            }
-            
-       }// end if
+
+          if(recvMsg.OP.type == ARRAY_DELETE && map_iter->second.type == ARRAY_NEW) {
+                m_totalLeak -= recvMsg.OP.size;
+                m_mapMemStatus.erase(map_iter);
+
+                pthread_mutex_unlock(&m_mapMutex);
+                continue;
+           }
+
+           bool found = false;
+           if(recvMsg.OP.type == SINGLE_DELETE && map_iter->second.type == ARRAY_NEW) {
+               for(list_iter = m_listLeakMem.begin(); list_iter != m_listLeakMem.end(); list_iter++) {
+                    if(!strcasecmp(list_iter->fileName, map_iter->second.fileName) && list_iter->lineNum == map_iter->second.lineNum) {
+                        found = true;
+                        list_iter->totalSize  += map_iter->second.totalSize;
+                        m_mapMemStatus.erase(map_iter);
+
+                        pthread_mutex_unlock(&m_mapMutex);
+                        break;
+                    } // end if
+               } // end for
+               if(!found) {
+                   m_listLeakMem.push_back(map_iter->second);
+                   found = true;
+               }
+
+               pthread_mutex_unlock(&m_mapMutex);
+               continue;
+           } // end if
+           
+           /* This cannot happen ever. */
+           if(recvMsg.OP.type == ARRAY_DELETE && map_iter->second.type == SINGLE_NEW) {
+               cout << "Fatal Error" << endl; 
+               exit(1); 
+           }
+
+       }// end if : recv delete or array delete
 
     } //end while
 }

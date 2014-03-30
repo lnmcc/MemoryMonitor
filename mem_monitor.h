@@ -16,14 +16,6 @@ public:
     MemMonitor(char* msgPath, pid_t pid);
     virtual ~MemMonitor();
 
-    void start();
-    int getMsgQueue();
-    map<void*, MemStatus>& getStatusMap();
-    list<MemStatus>& getLeakMemList();
-    void lock(); 
-    void unlock();
-    void addLeak(unsigned long leakByte);
-
 private:
     void analyseMsg();
     void display();
