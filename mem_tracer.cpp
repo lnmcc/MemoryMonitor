@@ -32,10 +32,35 @@ void buildStack() {
 	g_delInfoStack.push(lastDel);
 }
 
+void* operator new(size_t size) {
+	void* address = NULL;
+    size_t *p = NULL;
+    
+    p = (size_t*)malloc(size + sizeof(size_t));
+    p[0] = size;
+    address = (void*)(&p[1]);
+	
+	return address;
+}
+
+void* operator new[](size_t size) {
+	void* address = NULL;
+    size_t *p = NULL;
+    
+    p = (size_t*)malloc(size + sizeof(size_t));
+    p[0] = size;
+    address = (void*)(&p[1]);
+	
+	return address;
+}
+
 void* operator new(size_t size, char* fileName, int lineNum) {
 	Operation OP;
 	void* address = NULL;
-	address = ::operator new(size);
+	//address = ::operator new(size);
+    size_t *p = (size_t*)malloc(size + sizeof(size_t));
+    p[0] = size;
+    address = (void*)(&p[1]);
 	
 	if (address) {
         memset(&OP, 0x0, sizeof(Operation));
@@ -43,7 +68,6 @@ void* operator new(size_t size, char* fileName, int lineNum) {
 		OP.lineNum = lineNum;
 		OP.size = size;
 		OP.type = SINGLE_NEW;
-		OP.errCode = 0;
 		OP.address = address;
 		g_memTracer.insert(address, &OP);
 	}
@@ -55,7 +79,10 @@ void* operator new[](size_t size, char* fileName, int lineNum) {
 	Operation OP;
 	void *address;
 	
-	address = ::operator new[](size);
+	//address = ::operator new[](size);
+    size_t* p = (size_t*)malloc(size + sizeof(size_t));
+    p[0] = size;
+    address = (void*)(&p[1]);
 	
 	if (address) {
         memset(&OP, 0x0, sizeof(Operation));
@@ -63,7 +90,6 @@ void* operator new[](size_t size, char* fileName, int lineNum) {
 		OP.lineNum = lineNum;
 		OP.size = size;
 		OP.type = ARRAY_NEW;
-		OP.errCode = 0;
 		OP.address = address;
 		g_memTracer.insert(address, &OP);
 	}
@@ -72,18 +98,21 @@ void* operator new[](size_t size, char* fileName, int lineNum) {
 }
 
 void operator delete(void* address) {
+    cout << "delete" << endl;
 	if (NULL == address) {
         g_lock.unlock();
 		return;
 	}
 
+    size_t* p = (size_t*)address;
+    void* p2 = (void*)(&p[-1]); 
+
     Operation OP;
     memset(&OP, 0x0, sizeof(Operation));
 	strncpy(OP.fileName, DEL_FILE, FILENAME_LEN - 1);
 	OP.lineNum = DEL_LINE;
-	OP.size = 0; 
+	OP.size = p[-1]; 
 	OP.type = SINGLE_DELETE;
-	OP.errCode = 0;
 	OP.address = address;
 
     memset(DEL_FILE, 0x0, sizeof(DEL_FILE));
@@ -92,7 +121,7 @@ void operator delete(void* address) {
     g_lock.unlock();
 		
 	g_memTracer.erase(address, &OP);
-	free(address);
+	free(p2);
 }
 
 void operator delete[](void* address) {
@@ -101,13 +130,15 @@ void operator delete[](void* address) {
 		return;
 	}
 
+    size_t* p =(size_t*)address;
+    void* p2 = (void*)(&p[-1]);
+
     Operation OP;
     memset(&OP, 0x0, sizeof(Operation));
 	strncpy(OP.fileName, DEL_FILE, FILENAME_LEN - 1);
 	OP.lineNum = DEL_LINE;
-	OP.size = 0; 
+	OP.size = p[-1]; 
 	OP.type = ARRAY_DELETE;
-	OP.errCode = 0;
 	OP.address = address;
 
     memset(DEL_FILE, 0x0, sizeof(DEL_FILE));
@@ -116,7 +147,7 @@ void operator delete[](void* address) {
     g_lock.unlock();
 		
 	g_memTracer.erase(address, &OP);
-	free(address);
+	free(p2);
 }
 
 MemTracer::MemTracer() {	
@@ -146,19 +177,18 @@ MemTracer::MemTracer() {
 
             cerr << "MemTracer: Message queue has exist, try to delete it" << endl;
 
+
+            if (msgctl(m_msgQueue, IPC_RMID, NULL) == -1) {
+                cerr << "MemTracer: Cannot delete message queue" << endl;
+                parseError(__FILE__, __LINE__, errno);
+            }
+
             if(mq_unlink(m_msgPath) == -1) {
                 cerr << "MemTracer: Cannot unlink message queue" << endl;
                 parseError(__FILE__, __LINE__, errno);
             }
-/*
-            if (msgctl(m_msgQueue, IPC_RMID, NULL) == -1) {
-                cerr << "MemTracer: Cannot delete message queue" << endl;
-                parseError(__FILE__, __LINE__, errno);
-               // exit(1);
-            }
-           // m_msgQueue = msgget(key, IPC_CREAT | IPC_EXCL | 0777);
             sleep(1);
-*/
+
         } else {
             cerr << "MemTracer: Cannot create message queue" << endl;
             exit(1);
@@ -224,7 +254,6 @@ void MemTracer::insert(void* address, Operation* OP) {
 		
 		if(0 == msgctl(m_msgQueue, IPC_STAT, &msgQueInfo)) {
 			if(msgQueInfo.msg_qbytes > (msgQueInfo.msg_cbytes + sizeof(Operation))) {
-				sendMsg.OP.errCode = 0; 
 				sendMsg.type = MSG_TYPE;
 				if(msgsnd(m_msgQueue, &sendMsg, sizeof(sendMsg.OP), IPC_NOWAIT) == -1) 
 					parseError(__FILE__, __LINE__, errno);
@@ -267,8 +296,8 @@ bool MemTracer::erase(void* address, Operation* OP) {
 		if(msgctl(m_msgQueue, IPC_STAT, &msgQueInfo) == 0) {
 			if(msgQueInfo.msg_qbytes > (msgQueInfo.msg_cbytes + sizeof(Operation))) {
 				memcpy((void *)&sendMsg.OP, OP, sizeof(Operation));
-				sendMsg.OP.errCode = 1;
 				sendMsg.type = MSG_TYPE;
+                sendMsg.OP.size = OP->size;
 				if(msgsnd(m_msgQueue, &sendMsg, sizeof(sendMsg.OP), IPC_NOWAIT) == -1)
 					parseError(__FILE__, __LINE__, errno);
             }	
@@ -285,7 +314,6 @@ bool MemTracer::erase(void* address, Operation* OP) {
 
 		if(SINGLE_DELETE == OP->type && ARRAY_NEW == iter_mapOP->second.type) {
 			memcpy(&tmp, &(iter_mapOP->second), sizeof(Operation));
-			tmp.errCode = 1;
 			m_listErrOP.push_back(tmp);
 		}		
 

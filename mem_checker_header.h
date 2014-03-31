@@ -19,7 +19,6 @@ typedef struct {
     size_t 	     	size;	
     int	        	type;
     void*	    	address;
-    short           errCode;
 } Operation;
 
 typedef struct  {

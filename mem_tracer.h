@@ -30,6 +30,8 @@ extern SemMutex g_lock;
 extern char DEL_FILE[FILENAME_LEN];
 extern int DEL_LINE;
 
+void* operator new(size_t size);
+void* operator new[](size_t size);
 void* operator new(size_t size, char* fileName, int lineNum);
 void* operator new[](size_t size, char* fileName, int lineNum);
 

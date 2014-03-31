@@ -26,12 +26,12 @@ class TestObj {
 public:	
     TestObj() { 
         cout << "TestObj::TestObj" << ++num << endl;
-        a = new A[1024];
+        //a = new A[1024];
     }
 
     virtual ~TestObj() {
         cout << "TestObj::~TestObj" << --num << endl;
-        delete[] a;
+        //delete[] a;
     };
 
 private:

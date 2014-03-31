@@ -148,7 +148,7 @@ void MemMonitor::analyseMsg() {
             prompt = parseError(errno);
             warningWin(prompt);
             endwin();
-            break;
+            break; //break while
         } 
 
         pthread_mutex_lock(&m_mapMutex); 
@@ -190,12 +190,12 @@ void MemMonitor::analyseMsg() {
            map_iter = m_mapMemStatus.find(recvMsg.OP.address);
            if(map_iter == m_mapMemStatus.end()) {
 
-                pthread_mutex_unlock(&m_mapMutex);
+                //pthread_mutex_unlock(&m_mapMutex);
 
                 char *prompt = "You delete a pointer not traced!";
                 warningWin(prompt);
                 endwin();
-                break;  //TODO 
+                break;  //break while TODO 
            }
 
            if(recvMsg.OP.type == SINGLE_DELETE && map_iter->second.type == SINGLE_NEW) {
@@ -203,7 +203,7 @@ void MemMonitor::analyseMsg() {
                 m_mapMemStatus.erase(map_iter);
                 
                 pthread_mutex_unlock(&m_mapMutex);
-                continue;
+                continue; // continue while
            }
 
           if(recvMsg.OP.type == ARRAY_DELETE && map_iter->second.type == ARRAY_NEW) {
@@ -211,7 +211,7 @@ void MemMonitor::analyseMsg() {
                 m_mapMemStatus.erase(map_iter);
 
                 pthread_mutex_unlock(&m_mapMutex);
-                continue;
+                continue; // continue while
            }
 
            bool found = false;
@@ -222,8 +222,8 @@ void MemMonitor::analyseMsg() {
                         list_iter->totalSize  += map_iter->second.totalSize;
                         m_mapMemStatus.erase(map_iter);
 
-                        pthread_mutex_unlock(&m_mapMutex);
-                        break;
+                        //pthread_mutex_unlock(&m_mapMutex);
+                        break; // break for
                     } // end if
                } // end for
                if(!found) {
@@ -232,17 +232,20 @@ void MemMonitor::analyseMsg() {
                }
 
                pthread_mutex_unlock(&m_mapMutex);
-               continue;
+               continue; // continue while
            } // end if
            
            /* This cannot happen ever. */
            if(recvMsg.OP.type == ARRAY_DELETE && map_iter->second.type == SINGLE_NEW) {
                cout << "Fatal Error" << endl; 
+
+               pthread_mutex_unlock(&m_mapMutex);
                exit(1); 
            }
 
        }// end if : recv delete or array delete
 
+       pthread_mutex_unlock(&m_mapMutex);
     } //end while
 }
 
@@ -287,7 +290,7 @@ void MemMonitor::display() {
                 disp_list.push_back(*list_iter);
             }
         } //end for
-
+#if 1 
         if(m_totalLeak != 0) {
             erase(); 
 
@@ -312,11 +315,11 @@ void MemMonitor::display() {
             }
             mvprintw(line++, 0, "");
             mvprintw(line++, 0, "Total: %d Bytes(%0.1fKB = %0.1fMB)",
-                     m_totalLeak, (double)m_totalLeak / 1024, (double) m_totalLeak / 1024 / 1024 );
+                     m_totalLeak, (double)m_totalLeak / 1024, (double)m_totalLeak / 1024 / 1024 );
 
             refresh(); 
         }
-
+#endif
         pthread_mutex_unlock(&m_mapMutex);
         sleep(m_interval);
     }// end while
