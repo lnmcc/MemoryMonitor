@@ -11,6 +11,7 @@
 #include <assert.h>
 #include <sys/types.h>
 #include <sys/msg.h>
+#include <mqueue.h>
 
 #include "mem_tracer.h"
 
@@ -19,18 +20,12 @@ using namespace std;
 #ifdef  MEM_TRACE
 
 MemTracer g_memTracer;
-
-typedef struct {
-	char		fileName[FILENAME_LEN];	 
-	unsigned long	lineNum;	 
-} DelInfo;
-
+SemMutex g_lock;
 char DEL_FILE[FILENAME_LEN] = {0};
 int DEL_LINE = 0;
-SemMutex g_lock;
 stack<DelInfo> g_delInfoStack;
 
-static void buildStack() {
+void buildStack() {
 	DelInfo lastDel = {"", 0};
 	strcpy(lastDel.fileName, DEL_FILE);
 	lastDel.lineNum = DEL_LINE;
@@ -78,17 +73,9 @@ void* operator new[](size_t size, char* fileName, int lineNum) {
 
 void operator delete(void* address) {
 	if (NULL == address) {
+        g_lock.unlock();
 		return;
 	}
-
-    g_lock.lock();
-
-    if(DEL_LINE != 0 && !strcmp(DEL_FILE, ""))  
-        buildStack();
-
-    memset(DEL_FILE, 0x0, sizeof(DEL_FILE));
-    strncpy(DEL_FILE, __FILE__, FILENAME_LEN - 1);
-    DEL_LINE = __LINE__;
 
     Operation OP;
     memset(&OP, 0x0, sizeof(Operation));
@@ -110,17 +97,9 @@ void operator delete(void* address) {
 
 void operator delete[](void* address) {
 	if (NULL == address) {
+        g_lock.unlock();
 		return;
 	}
-
-    g_lock.lock();
-
-    if(DEL_LINE != 0 && !strcmp(DEL_FILE, ""))  
-        buildStack();
-
-    memset(DEL_FILE, 0x0, sizeof(DEL_FILE));
-    strncpy(DEL_FILE, __FILE__, FILENAME_LEN - 1);
-    DEL_LINE = __LINE__;
 
     Operation OP;
     memset(&OP, 0x0, sizeof(Operation));
@@ -147,7 +126,7 @@ MemTracer::MemTracer() {
 	struct passwd *pwd;
 	FILE *fp = NULL;
 
-	sprintf(m_msgPath, "/tmp/mem_tracer%d", getpid());
+	sprintf(m_msgPath, "/home/sijiewang/mem_tracer%d", getpid());
 
 	if((fp = fopen(m_msgPath, "a+")) == NULL) {
 		cerr << "MemTracer: Cannot create message queue: " <<  m_msgPath << endl; 
@@ -159,7 +138,7 @@ MemTracer::MemTracer() {
 		exit(1);
 	}
 
-	if((m_msgQueue = msgget(key, IPC_CREAT | IPC_EXCL | 0777)) == -1) {
+	while((m_msgQueue = msgget(key, IPC_CREAT | IPC_EXCL | 0777)) == -1) {
 
         parseError(__FILE__, __LINE__, errno);
 
@@ -167,12 +146,19 @@ MemTracer::MemTracer() {
 
             cerr << "MemTracer: Message queue has exist, try to delete it" << endl;
 
+            if(mq_unlink(m_msgPath) == -1) {
+                cerr << "MemTracer: Cannot unlink message queue" << endl;
+                parseError(__FILE__, __LINE__, errno);
+            }
+/*
             if (msgctl(m_msgQueue, IPC_RMID, NULL) == -1) {
                 cerr << "MemTracer: Cannot delete message queue" << endl;
-                exit(1);
+                parseError(__FILE__, __LINE__, errno);
+               // exit(1);
             }
-            m_msgQueue = msgget(key, IPC_CREAT | IPC_EXCL | 0777);
-
+           // m_msgQueue = msgget(key, IPC_CREAT | IPC_EXCL | 0777);
+            sleep(1);
+*/
         } else {
             cerr << "MemTracer: Cannot create message queue" << endl;
             exit(1);
@@ -211,6 +197,9 @@ void MemTracer::parseError(char* file, int lineNum, int err) {
 		break;
 	case ENOMEM:
 		cerr << "---ENOMEM---" << endl;
+		break;
+	case EEXIST:
+		cerr << "---EEXIST---" << endl;
 		break;
 	default:
 	    cerr << "---Undefined Error---" << endl;
@@ -259,7 +248,7 @@ bool MemTracer::erase(void* address, Operation* OP) {
 		return false;
     }
 
-	if(!strcmp(OP->fileName,"") && OP->lineNum == 0) {
+	if(!strcmp(OP->fileName, "") && OP->lineNum == 0) {
 		iter_mapOP = m_mapOP.find(address);
         if(iter_mapOP == m_mapOP.end()) {
             cout << "MemTracer: Cannot not find any information for the address" << endl;
@@ -271,7 +260,7 @@ bool MemTracer::erase(void* address, Operation* OP) {
 			strcpy(OP->fileName, del.fileName);
 			OP->lineNum = del.lineNum;
 			g_delInfoStack.pop();
-		}
+		} 
 	}
 	
 	if(m_msgQueue != -1) {
@@ -306,7 +295,7 @@ bool MemTracer::erase(void* address, Operation* OP) {
 		return true;
 
 	} else {
-        printf("MemTracer : *****WARNING: %s: %ld : %p, Delete a pointer cannot find in MAP.******\n", OP->fileName, OP->lineNum , address);
+        printf("MemTracer : ***** WARNING: %s: %ld : %p, Delete a pointer cannot find in MAP.******\n", OP->fileName, OP->lineNum , address);
 		m_mutexMap.unlock();
 		return false;
 	}

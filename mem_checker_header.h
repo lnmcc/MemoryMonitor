@@ -5,6 +5,8 @@
 #define ARRAY_NEW            0x01 
 #define SINGLE_DELETE        0x02
 #define ARRAY_DELETE         0x03
+#define SYS_SINGLE_NEW       0x04
+#define SYS_ARRAY_NEW        0x05
 
 #define FILENAME_LEN         128
 #define MSG_TYPE             0X12345678

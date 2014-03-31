@@ -27,7 +27,6 @@ MemMonitor::~MemMonitor() {
     pthread_mutex_destroy(&m_mapMutex);
 }
 
-
 void MemMonitor::start() {
     key_t key = -1;
 
@@ -47,6 +46,9 @@ void MemMonitor::start() {
     
     pthread_create(&m_analyse_pid, NULL, analyseRoutine, this);
     pthread_create(&m_disp_pid, NULL, displayRoutine, this);
+
+    pthread_join(m_analyse_pid, NULL);
+    pthread_join(m_disp_pid, NULL);
 }
 
 void* MemMonitor::analyseRoutine(void* arg) {
@@ -155,7 +157,7 @@ void MemMonitor::analyseMsg() {
             map_iter = m_mapMemStatus.find(recvMsg.OP.address);
             if(map_iter == m_mapMemStatus.end()) {
                 MemStatus memStatus;
-                memcpy(&memStatus, 0x0, sizeof(MemStatus));
+                memset(&memStatus, 0x0, sizeof(MemStatus));
                 m_totalLeak += recvMsg.OP.size;
                 strncpy(memStatus.fileName, recvMsg.OP.fileName, FILENAME_LEN - 1);
                 memStatus.lineNum = recvMsg.OP.lineNum; 
@@ -252,8 +254,10 @@ void MemMonitor::display() {
     list<MemStatus>::iterator list_iter, disp_iter;
 
     while(true) {
+        line = 0;
         disp_list.clear();
         time(&sysTime);
+
         pthread_mutex_lock(&m_mapMutex);
 
         for(map_iter = m_mapMemStatus.begin(); map_iter != m_mapMemStatus.end(); map_iter++) {
@@ -288,6 +292,8 @@ void MemMonitor::display() {
             erase(); 
 
             mvprintw(line++, 0, "ProcessID:%d, Interval:%d, Time:%s", m_pid, m_interval, ctime(&sysTime));
+            refresh();
+
             mvprintw(line++, 0, "");		
             mvprintw(line++, 0, "");
 
@@ -311,6 +317,8 @@ void MemMonitor::display() {
             refresh(); 
         }
 
+        pthread_mutex_unlock(&m_mapMutex);
+        sleep(m_interval);
     }// end while
 } 
 
@@ -337,7 +345,7 @@ int main(int argc, char *argv[]) {
         }	
     }
 
-    sprintf(msgPath, "/tmp/mem_tracer%d", pid);
+    sprintf(msgPath, "/home/sijiewang/mem_tracer%d", pid);
 
     MemMonitor monitor(msgPath, pid, 1);
     monitor.start();    

@@ -1,10 +1,10 @@
 OBJS = mem_tracer.o sem_mutex.o 
 CFLAGS = -Wall -g -DMEM_TRACE
-LFLAGS = -lpthread -lcurses
+LFLAGS = -lpthread -lcurses -lrt
 
 all : demo.o mem_monitor.o $(OBJS)
 	g++ -g -o demo demo.o $(OBJS)  $(LFLAGS) $(LFLAGS) 
-	g++ -g -o mem_monitor mem_monitor.o $(OBJS) $(LFLAGS) 
+	g++ -g -o mem_monitor mem_monitor.o sem_mutex.o $(LFLAGS) 
 
 mem_tracer.o : mem_tracer.cpp 
 	g++ -c $(CFLAGS) mem_tracer.cpp 

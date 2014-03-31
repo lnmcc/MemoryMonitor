@@ -22,70 +22,14 @@ private:
     char ch[1024];
 };
 
-class TestObj {
-public:	
-	TestObj() { 
-        cout << "TestObj::TestObj" << endl;
-        a = new A[1024];
-    }
-
-    virtual ~TestObj() {
-        cout << "TestObj::~TestObj" << endl;
-        delete[] a;
-    };
-
-    void show() {}
-
-private:
-    A *a; 
-};
-
 int main() {
-    list<TestObj*> lst;
-    lst.clear();
+    int num = 0;
 
-    int d = 0;
-    while(d < 30) {
-
-    	TestObj* pob = new TestObj;	
-        lst.push_back(pob);
+    while(1) {
+        A* a = new A();
         sleep(1);
-        d++;
+        cout << ++num << endl;
     }
 
-    d = 0;
-    list<TestObj*>::iterator iter;
-    for(iter = lst.begin(); iter != lst.end(); iter++) {
-        delete *iter;
-        sleep(1);
-        if(d++ == 10) {
-            break;
-        }
-    }
-
-    //pObAry->TestObj();
-/*	
-    pthread_t pid;
-    pthread_create(&pid, NULL, callback, NULL);
-
-    list<unsigned char*> memptrs;
-
-    int i = 0; 
-    
-    while(i++ < 30) {
-        unsigned char* ptr = (unsigned char*) new char[1024];        
-        memptrs.push_back(ptr);
-        cout << "i = " << i << endl;
-        sleep(1);
-    }
- 
-    list<unsigned char*>::iterator iter;
-    for(iter = memptrs.begin(); iter != memptrs.end(); iter++) {
-        delete  (*iter);
-        sleep(1);
-    }
-    
-    pthread_join(pid, NULL); 
-*/
 	return 0;
 }
