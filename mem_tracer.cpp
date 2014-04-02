@@ -19,6 +19,9 @@ using namespace std;
 
 #ifdef  MEM_TRACE
 
+#define INNEROP 0x0001
+#define OUTEROP 0x0002
+
 MemTracer g_memTracer;
 SemMutex g_lock;
 char DEL_FILE[FILENAME_LEN] = {0};
@@ -36,9 +39,10 @@ void* operator new(size_t size) {
 	void* address = NULL;
     size_t *p = NULL;
     
-    p = (size_t*)malloc(size + sizeof(size_t));
+    p = (size_t*)malloc(size + 2 * sizeof(size_t));
     p[0] = size;
-    address = (void*)(&p[1]);
+    p[1] = INNEROP;
+    address = (void*)(&p[2]);
 	
 	return address;
 }
@@ -47,9 +51,10 @@ void* operator new[](size_t size) {
 	void* address = NULL;
     size_t *p = NULL;
     
-    p = (size_t*)malloc(size + sizeof(size_t));
+    p = (size_t*)malloc(size + 2 * sizeof(size_t));
     p[0] = size;
-    address = (void*)(&p[1]);
+    p[1] = INNEROP;
+    address = (void*)(&p[2]);
 	
 	return address;
 }
@@ -57,10 +62,12 @@ void* operator new[](size_t size) {
 void* operator new(size_t size, char* fileName, int lineNum) {
 	Operation OP;
 	void* address = NULL;
-	//address = ::operator new(size);
-    size_t *p = (size_t*)malloc(size + sizeof(size_t));
+    size_t *p = NULL;
+    
+    p = (size_t*)malloc(size + 2 * sizeof(size_t));
     p[0] = size;
-    address = (void*)(&p[1]);
+    p[1] = OUTEROP;
+    address = (void*)(&p[2]);
 	
 	if (address) {
         memset(&OP, 0x0, sizeof(Operation));
@@ -78,11 +85,12 @@ void* operator new(size_t size, char* fileName, int lineNum) {
 void* operator new[](size_t size, char* fileName, int lineNum) {
 	Operation OP;
 	void *address;
-	
-	//address = ::operator new[](size);
-    size_t* p = (size_t*)malloc(size + sizeof(size_t));
+    size_t* p = NULL;
+    
+    p = (size_t*)malloc(size + 2 * sizeof(size_t));
     p[0] = size;
-    address = (void*)(&p[1]);
+    p[1] = OUTEROP;
+    address = (void*)(&p[2]);
 	
 	if (address) {
         memset(&OP, 0x0, sizeof(Operation));
@@ -98,20 +106,25 @@ void* operator new[](size_t size, char* fileName, int lineNum) {
 }
 
 void operator delete(void* address) {
-    cout << "delete" << endl;
 	if (NULL == address) {
         g_lock.unlock();
 		return;
 	}
 
     size_t* p = (size_t*)address;
-    void* p2 = (void*)(&p[-1]); 
+    void* p2 = (void*)(&p[-2]); 
+
+    if(p[-1] == INNEROP) {
+        g_lock.unlock();
+        free(p2);
+        return;
+    }
 
     Operation OP;
     memset(&OP, 0x0, sizeof(Operation));
 	strncpy(OP.fileName, DEL_FILE, FILENAME_LEN - 1);
 	OP.lineNum = DEL_LINE;
-	OP.size = p[-1]; 
+	OP.size = p[-2]; 
 	OP.type = SINGLE_DELETE;
 	OP.address = address;
 
@@ -131,13 +144,19 @@ void operator delete[](void* address) {
 	}
 
     size_t* p =(size_t*)address;
-    void* p2 = (void*)(&p[-1]);
+    void* p2 = (void*)(&p[-2]);
+
+    if(p[-1] == INNEROP) {
+        g_lock.unlock();
+        free(p2);
+        return;
+    }
 
     Operation OP;
     memset(&OP, 0x0, sizeof(Operation));
 	strncpy(OP.fileName, DEL_FILE, FILENAME_LEN - 1);
 	OP.lineNum = DEL_LINE;
-	OP.size = p[-1]; 
+	OP.size = p[-2]; 
 	OP.type = ARRAY_DELETE;
 	OP.address = address;
 
@@ -154,54 +173,31 @@ MemTracer::MemTracer() {
 	key_t key;
 	int flags, counter = 0;
 
-	struct passwd *pwd;
-	FILE *fp = NULL;
+	m_fp = NULL;
 
-	sprintf(m_msgPath, "/home/sijiewang/mem_tracer%d", getpid());
+	sprintf(m_msgPath, "/home/sijiewang/mem_tracer");
 
-	if((fp = fopen(m_msgPath, "a+")) == NULL) {
-		cerr << "MemTracer: Cannot create message queue: " <<  m_msgPath << endl; 
-		exit( 1 );
+	if((m_fp = fopen(m_msgPath, "a")) == NULL) {
+		cerr << "MemTracer: Cannot open file: " <<  m_msgPath << endl; 
+		exit(1);
 	}
 
 	if((key = ftok(m_msgPath, 'a')) == -1 ) {
 		cerr << "MemTracer: Cannot create KEY for message queue" << endl;
+        fclose(m_fp);
 		exit(1);
 	}
 
-	while((m_msgQueue = msgget(key, IPC_CREAT | IPC_EXCL | 0777)) == -1) {
-
+	if((m_msgQueue = msgget(key, 0)) == -1) {
         parseError(__FILE__, __LINE__, errno);
-
-        if(errno == EEXIST) {
-
-            cerr << "MemTracer: Message queue has exist, try to delete it" << endl;
-
-
-            if (msgctl(m_msgQueue, IPC_RMID, NULL) == -1) {
-                cerr << "MemTracer: Cannot delete message queue" << endl;
-                parseError(__FILE__, __LINE__, errno);
-            }
-
-            if(mq_unlink(m_msgPath) == -1) {
-                cerr << "MemTracer: Cannot unlink message queue" << endl;
-                parseError(__FILE__, __LINE__, errno);
-            }
-            sleep(1);
-
-        } else {
-            cerr << "MemTracer: Cannot create message queue" << endl;
-            exit(1);
-        }    
+        cerr << "MemTracer: Message queue error" << endl;
+        fclose(m_fp);
+        exit(1);
 	}
 }
 
 MemTracer::~MemTracer() {
-    if(msgctl(m_msgQueue, IPC_RMID, NULL) == -1) {
-        cerr << "Cannot delete message queue, mybe you need delete file: " 
-             << m_msgPath << " yourself" << endl;
-    }
-    unlink(m_msgPath);
+    fclose(m_fp);
 }
 
 void MemTracer::parseError(char* file, int lineNum, int err) {

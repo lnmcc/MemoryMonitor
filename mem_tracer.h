@@ -58,6 +58,7 @@ private:
 	SemMutex m_mutexMap;
 	int m_msgQueue;		
 	char m_msgPath[FILENAME_LEN];	
+    FILE* m_fp;
 };
 
 #else

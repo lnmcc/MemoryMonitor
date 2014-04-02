@@ -48,7 +48,7 @@ int main() {
     sleep(10);
 
     int d = 0;
-    while(d < 30) {
+    while(d < 100) {
 
     	TestObj* pob = new TestObj;	
         lst.push_back(pob);

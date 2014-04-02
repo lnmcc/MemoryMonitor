@@ -8,18 +8,21 @@
 #include <assert.h>
 #include <string.h>
 #include <time.h>
+#include <signal.h>
+#include <mqueue.h>
 #include "mem_monitor.h"
 
-MemMonitor::MemMonitor(char* msgPath, pid_t pid, int interval) {
-    m_msgPath = msgPath;
-    m_pid = pid;
+MemMonitor::MemMonitor() {
+    m_msgPath = NULL;
+    m_pid = 0;
     m_fp = NULL;
     win = NULL; 
     m_msgQueue = -1;
     m_totalLeak = 0;
-    m_interval = 1;
+    m_interval = 0;
+    running = false;
+
     pthread_mutex_init(&m_mapMutex, NULL);
-    m_interval = interval;
 }
 
 MemMonitor::~MemMonitor() {
@@ -27,23 +30,55 @@ MemMonitor::~MemMonitor() {
     pthread_mutex_destroy(&m_mapMutex);
 }
 
-void MemMonitor::start() {
+
+void MemMonitor::init(char* msgPath, pid_t pid, int interval) {
+    m_msgPath = msgPath;
+    m_pid = pid;
+    m_interval = interval;   
+
     key_t key = -1;
 
-    if((m_fp = fopen(m_msgPath, "r")) == NULL) {
+    sprintf(m_msgPath, "/home/sijiewang/mem_tracer");
+
+     if((m_fp = fopen(m_msgPath, "a+")) == NULL) {
         cout << "MemMonitor: Cannot not open message queue file: " << m_msgPath << endl;
         exit(1);
     }
 
-    key = ftok(m_msgPath, 'a');
-    if((m_msgQueue = msgget(key, 0)) == -1) {
-        parseError(errno);
+	if((key = ftok(m_msgPath, 'a')) == -1 ) {
+		cerr << "MemMonitor: Cannot create KEY for message queue" << endl;
         fclose(m_fp);
-        exit(1);
-    }
+		exit(1);
+	}
+
+    while((m_msgQueue = msgget(key, IPC_CREAT | IPC_EXCL | 0777)) == -1) {
+
+            parseError(errno);
+
+            if(errno == EEXIST) {
+
+                cerr << "MemTracer: Message queue has exist, try to delete it" << endl;
+
+                if (msgctl(m_msgQueue, IPC_RMID, NULL) == -1) {
+                    cerr << "MemTracer: Cannot delete message queue" << endl;
+                    parseError(errno);
+                }
+           
+                sleep(1);
+
+            } else {
+                cerr << "MemTracer: Cannot create message queue" << endl;
+
+                fclose(m_fp);
+                exit(1);
+            }    
+    }	
 
     initScreen();
-    
+}
+
+void MemMonitor::start() {
+    running = true;
     pthread_create(&m_analyse_pid, NULL, analyseRoutine, this);
     pthread_create(&m_disp_pid, NULL, displayRoutine, this);
 
@@ -51,27 +86,39 @@ void MemMonitor::start() {
     pthread_join(m_disp_pid, NULL);
 }
 
+void MemMonitor::stop() {
+    cout << "Stop" << endl;
+    if(msgctl(m_msgQueue, IPC_RMID, NULL) == -1) {
+         cerr << "MemTracer: Cannot delete message queue" << endl;
+         parseError(errno);
+    }   
+    fclose(m_fp);
+    unlink(m_msgPath);
+}
+
 void* MemMonitor::analyseRoutine(void* arg) {
     MemMonitor* mm = (MemMonitor*)arg;
     mm->analyseMsg();
+    return NULL;
 }
 
 void* MemMonitor::displayRoutine(void* arg) {
     MemMonitor* mm = (MemMonitor*)arg;
     mm->display();
+    return NULL;
 }
 
 void MemMonitor::warningWin(char* msg) {
     const char* prompt = "Press AnyKey to Exit";
-    WINDOW* warningWin = newwin(4, 60, LINES / 2, COLS / 2);
-    box(warningWin, '!', '!');
+    WINDOW* wWin = newwin(4, 80, LINES / 2 + 2 , COLS / 2 - 40);
+    box(wWin, '*', '*');
 
     if(msg) 
-        mvwaddstr(warningWin, 1, (60 - strlen(msg)) / 2, msg);
+        mvwaddstr(wWin, 1, (60 - strlen(msg)) / 2, msg);
 
-    mvwaddstr(warningWin, 2, (60 - strlen(prompt)) / 2, prompt);
-    touchwin(warningWin);
-    wrefresh(warningWin);
+    mvwaddstr(wWin, 2, (60 - strlen(prompt)) / 2, prompt);
+    touchwin(wWin);
+    wrefresh(wWin);
     getch();
     touchwin(stdscr);
     refresh();
@@ -142,16 +189,17 @@ void MemMonitor::analyseMsg() {
     map<void*, MemStatus>::iterator map_iter;
     list<MemStatus>::iterator list_iter;
 
-    while(true) {
+    while(running) {
+        pthread_mutex_lock(&m_mapMutex); 
+
         if(msgrcv(m_msgQueue, &recvMsg, sizeof(recvMsg.OP), MSG_TYPE, 0) == -1) {
             char *prompt = NULL;
             prompt = parseError(errno);
             warningWin(prompt);
             endwin();
+            pthread_mutex_unlock(&m_mapMutex);
             break; //break while
         } 
-
-        pthread_mutex_lock(&m_mapMutex); 
 
         if(recvMsg.OP.type == SINGLE_NEW || recvMsg.OP.type == ARRAY_NEW) {
             map_iter = m_mapMemStatus.find(recvMsg.OP.address);
@@ -168,7 +216,7 @@ void MemMonitor::analyseMsg() {
             } else {
                 m_totalLeak += recvMsg.OP.size;
                 MemStatus memStatus;
-                memcpy(&memStatus, 0x0, sizeof(MemStatus));
+                memset(&memStatus, 0x0, sizeof(MemStatus));
                 strncpy(memStatus.fileName, map_iter->second.fileName, FILENAME_LEN - 1);
                 memStatus.lineNum = map_iter->second.lineNum;
                 memStatus.address = map_iter->second.address;
@@ -294,7 +342,7 @@ void MemMonitor::display() {
         if(m_totalLeak != 0) {
             erase(); 
 
-            mvprintw(line++, 0, "ProcessID:%d, Interval:%d, Time:%s", m_pid, m_interval, ctime(&sysTime));
+            mvprintw(line++, 0, "ProcessID:%d, Interval:%ds, Time:%s", m_pid, m_interval, ctime(&sysTime));
             refresh();
 
             mvprintw(line++, 0, "");		
@@ -325,10 +373,17 @@ void MemMonitor::display() {
     }// end while
 } 
 
+MemMonitor monitor;
+
+void sighandler(int sig) {
+    monitor.stop();
+}
+
 int main(int argc, char *argv[]) {
     int ch;
     char msgPath[FILENAME_LEN];
     pid_t pid;
+    struct sigaction act;
 
     if(argc < 3) {
         cout << "Usage: -p [ProcessID]" << endl;
@@ -348,9 +403,14 @@ int main(int argc, char *argv[]) {
         }	
     }
 
-    sprintf(msgPath, "/home/sijiewang/mem_tracer%d", pid);
+    act.sa_handler = sighandler;
+    sigaddset(&act.sa_mask, SIGQUIT);
+    act.sa_flags = SA_RESETHAND;
+    sigaction(SIGINT, &act, NULL);
 
-    MemMonitor monitor(msgPath, pid, 1);
+    sprintf(msgPath, "/home/sijiewang/mem_tracer", pid);
+
+    monitor.init(msgPath, pid, 1);
     monitor.start();    
 
     return 0;

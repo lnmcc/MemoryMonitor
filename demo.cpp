@@ -26,12 +26,12 @@ class TestObj {
 public:	
     TestObj() { 
         cout << "TestObj::TestObj" << ++num << endl;
-        a = new A[1024];
+        //a = new A[1024];
     }
 
     virtual ~TestObj() {
         cout << "TestObj::~TestObj" << --num << endl;
-        delete[] a;
+        //delete[] a;
     };
 
 private:
@@ -45,10 +45,8 @@ int main() {
     list<TestObj*> lst;
     lst.clear();
 
-    sleep(10);
-
     int d = 0;
-    while(d < 30) {
+    while(d < 100) {
 
     	TestObj* pob = new TestObj;	
         lst.push_back(pob);
