@@ -87,7 +87,6 @@ void MemMonitor::start() {
 }
 
 void MemMonitor::stop() {
-    cout << "Stop" << endl;
     if(msgctl(m_msgQueue, IPC_RMID, NULL) == -1) {
          cerr << "MemTracer: Cannot delete message queue" << endl;
          parseError(errno);
