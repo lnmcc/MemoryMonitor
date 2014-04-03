@@ -253,7 +253,9 @@ void MemTracer::insert(void* address, Operation* OP) {
 				sendMsg.type = MSG_TYPE;
 				if(msgsnd(m_msgQueue, &sendMsg, sizeof(sendMsg.OP), IPC_NOWAIT) == -1) 
 					parseError(__FILE__, __LINE__, errno);
-			}
+            } else {
+                cerr << "MemTracer: Cannot not send message, no space" << endl;
+            }
 		} else 
 			parseError(__FILE__, __LINE__, errno);
 	}

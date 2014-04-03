@@ -190,6 +190,7 @@ void MemMonitor::analyseMsg() {
     list<MemStatus>::iterator list_iter;
 
     while(running) {
+        sleep(m_interval);
         pthread_mutex_lock(&m_mapMutex); 
 
         if(msgrcv(m_msgQueue, &recvMsg, sizeof(recvMsg.OP), MSG_TYPE, 0) == -1) {
@@ -197,7 +198,6 @@ void MemMonitor::analyseMsg() {
             prompt = parseError(errno);
             warningWin(prompt);
             endwin();
-            pthread_mutex_unlock(&m_mapMutex);
             break; //break while
         } 
 
@@ -270,7 +270,6 @@ void MemMonitor::analyseMsg() {
                         list_iter->totalSize  += map_iter->second.totalSize;
                         m_mapMemStatus.erase(map_iter);
 
-                        //pthread_mutex_unlock(&m_mapMutex);
                         break; // break for
                     } // end if
                } // end for
@@ -295,6 +294,8 @@ void MemMonitor::analyseMsg() {
 
        pthread_mutex_unlock(&m_mapMutex);
     } //end while
+
+    pthread_mutex_unlock(&m_mapMutex);
 }
 
 void MemMonitor::display() {
@@ -305,6 +306,7 @@ void MemMonitor::display() {
     list<MemStatus>::iterator list_iter, disp_iter;
 
     while(true) {
+        sleep(m_interval);
         line = 0;
         disp_list.clear();
         time(&sysTime);
@@ -316,7 +318,7 @@ void MemMonitor::display() {
                 if(!strcasecmp(map_iter->second.fileName, disp_iter->fileName)
                    && map_iter->second.lineNum == disp_iter->lineNum) {
                        disp_iter->totalSize += map_iter->second.totalSize;
-                       break;
+                       break; // break for
                 }
             } // end for
 
@@ -330,7 +332,7 @@ void MemMonitor::display() {
                 if(!strcasecmp(list_iter->fileName, disp_iter->fileName) 
                   && list_iter->lineNum == disp_iter->lineNum) {
                        disp_iter->totalSize += list_iter->totalSize;
-                       break;
+                       break; // break for
                   }
             } // end for
 
@@ -343,7 +345,6 @@ void MemMonitor::display() {
             erase(); 
 
             mvprintw(line++, 0, "ProcessID:%d, Interval:%ds, Time:%s", m_pid, m_interval, ctime(&sysTime));
-            refresh();
 
             mvprintw(line++, 0, "");		
             mvprintw(line++, 0, "");
@@ -369,8 +370,8 @@ void MemMonitor::display() {
         }
 #endif
         pthread_mutex_unlock(&m_mapMutex);
-        sleep(m_interval);
     }// end while
+    pthread_mutex_unlock(&m_mapMutex);
 } 
 
 MemMonitor monitor;
