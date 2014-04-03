@@ -43,6 +43,7 @@ private:
     unsigned int m_interval;
     WINDOW *win;
     pthread_mutex_t m_mapMutex;
+    pthread_mutex_t m_dispMutex;
     bool running;
 };
 

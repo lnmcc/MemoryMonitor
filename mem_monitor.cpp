@@ -22,12 +22,14 @@ MemMonitor::MemMonitor() {
     running = false;
 
     pthread_mutex_init(&m_mapMutex, NULL);
+    pthread_mutex_init(&m_dispMutex, NULL);
 }
 
 MemMonitor::~MemMonitor() {
     if(m_fp)
         fclose(m_fp);
     pthread_mutex_destroy(&m_mapMutex);
+    pthread_mutex_destroy(&m_dispMutex);
 }
 
 
@@ -88,6 +90,7 @@ void MemMonitor::stop() {
          cerr << "MemTracer: Cannot delete message queue" << endl;
          parseError(errno);
     }   
+    endwin();
     fclose(m_fp);
     unlink(m_msgPath);
 }
@@ -105,9 +108,10 @@ void* MemMonitor::displayRoutine(void* arg) {
 }
 
 void MemMonitor::warningWin(const char* msg) {
-    const char* prompt = "Press AnyKey to Exit";
+    pthread_mutex_lock(&m_dispMutex);
+    const char* prompt = "Press AnyKey to exit this window";
     WINDOW* wWin = newwin(4, 80, LINES / 2 + 2 , COLS / 2 - 40);
-    box(wWin, '*', '*');
+    box(wWin, ACS_VLINE, ACS_HLINE);
 
     if(msg) 
         mvwaddstr(wWin, 1, (60 - strlen(msg)) / 2, msg);
@@ -118,6 +122,7 @@ void MemMonitor::warningWin(const char* msg) {
     getch();
     touchwin(stdscr);
     refresh();
+    pthread_mutex_unlock(&m_dispMutex);
 }
 
 void MemMonitor::initScreen() {
@@ -129,7 +134,7 @@ void MemMonitor::initScreen() {
     attrset(A_REVERSE);
     mvprintw(3, 0, "%-24s%-12s%-24s%-10s\n",
             "File Name", "Line Num", "Allocated(Byte)", "Percent(%)");
-    attrset(A_REVERSE);
+    attrset(A_NORMAL);
     refresh();
 }
 
@@ -192,7 +197,6 @@ void MemMonitor::analyseMsg() {
             const char *prompt = NULL;
             prompt = parseError(errno);
             warningWin(prompt);
-            endwin();
             break; //break while
         } 
 
@@ -236,7 +240,6 @@ void MemMonitor::analyseMsg() {
            if(map_iter == m_mapMemStatus.end()) {
                 const char *prompt = "You delete a pointer not traced!";
                 warningWin(prompt);
-                endwin();
                 break;  //break while TODO 
            }
 
@@ -305,6 +308,7 @@ void MemMonitor::display() {
         disp_list.clear();
         time(&sysTime);
 
+        pthread_mutex_lock(&m_dispMutex);
         erase(); 
         attrset(A_NORMAL);
         mvprintw(line++, 0, "Interval:%ds, Time:%s", m_interval, ctime(&sysTime));
@@ -316,6 +320,7 @@ void MemMonitor::display() {
         mvprintw(line++, 0, "%-24s%-12s%-24s%-10s\n", "FILE", "LINE", "Allocated(Byte)", "Percent(%)");
         attrset(A_NORMAL);
         refresh();
+        pthread_mutex_unlock(&m_dispMutex);
 
         pthread_mutex_lock(&m_mapMutex);
 
@@ -348,6 +353,8 @@ void MemMonitor::display() {
         } //end for
  
         if(m_totalLeak != 0) {
+            pthread_mutex_lock(&m_dispMutex);
+
             for (disp_iter = disp_list.begin(); disp_iter != disp_list.end(); disp_iter++) {
                 mvprintw(line++, 0, "%-24s%-12d%-24d%2.2f%%",
                          disp_iter->fileName, disp_iter->lineNum,
@@ -358,8 +365,9 @@ void MemMonitor::display() {
             mvprintw(line++, 0, "");
             mvprintw(line++, 0, "Total: %d Bytes(%0.1fKB = %0.1fMB)",
                      m_totalLeak, (double)m_totalLeak / 1024, (double)m_totalLeak / 1024 / 1024 );
-
             refresh(); 
+
+            pthread_mutex_unlock(&m_dispMutex);
         }
 
         pthread_mutex_unlock(&m_mapMutex);
