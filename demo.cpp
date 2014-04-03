@@ -46,7 +46,7 @@ int main() {
     lst.clear();
 
     int d = 0;
-    while(d < 20) {
+    while(d < 10) {
 
     	TestObj* pob = new TestObj;	
         lst.push_back(pob);

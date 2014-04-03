@@ -304,11 +304,16 @@ void MemMonitor::display() {
 
     while(true) {
         sleep(m_interval);
+
+        //FIXME: empty queue and process is end
+
         line = 0;
         disp_list.clear();
         time(&sysTime);
 
+        pthread_mutex_lock(&m_mapMutex);
         pthread_mutex_lock(&m_dispMutex);
+
         erase(); 
         attrset(A_NORMAL);
         mvprintw(line++, 0, "Interval:%ds, Time:%s", m_interval, ctime(&sysTime));
@@ -321,8 +326,6 @@ void MemMonitor::display() {
         attrset(A_NORMAL);
         refresh();
         pthread_mutex_unlock(&m_dispMutex);
-
-        pthread_mutex_lock(&m_mapMutex);
 
         for(map_iter = m_mapMemStatus.begin(); map_iter != m_mapMemStatus.end(); map_iter++) {
             for(disp_iter = disp_list.begin(); disp_iter != disp_list.end(); disp_iter++) {
