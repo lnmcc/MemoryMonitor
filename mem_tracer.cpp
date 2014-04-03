@@ -59,7 +59,7 @@ void* operator new[](size_t size) {
 	return address;
 }
 
-void* operator new(size_t size, char* fileName, int lineNum) {
+void* operator new(size_t size, const char* fileName, const int lineNum) {
 	Operation OP;
 	void* address = NULL;
     size_t *p = NULL;
@@ -82,7 +82,7 @@ void* operator new(size_t size, char* fileName, int lineNum) {
 	return address;
 }
 
-void* operator new[](size_t size, char* fileName, int lineNum) {
+void* operator new[](size_t size, const char* fileName, const int lineNum) {
 	Operation OP;
 	void *address;
     size_t* p = NULL;
@@ -171,11 +171,8 @@ void operator delete[](void* address) {
 
 MemTracer::MemTracer() {	
 	key_t key;
-	int flags, counter = 0;
-
 	m_fp = NULL;
-
-	sprintf(m_msgPath, "/tmp/mem_tracer");
+	m_msgPath = "/tmp/mem_tracer";
 
 	if((m_fp = fopen(m_msgPath, "a")) == NULL) {
 		cerr << "MemTracer: Cannot open file: " <<  m_msgPath << endl; 
@@ -200,7 +197,7 @@ MemTracer::~MemTracer() {
     fclose(m_fp);
 }
 
-void MemTracer::parseError(char* file, int lineNum, int err) {
+void MemTracer::parseError(const char* file, const int lineNum, const int err) {
     cerr << "Error: " << file << ": " << lineNum << ": ";
 	switch(err) {
 	case EAGAIN:

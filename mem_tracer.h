@@ -7,7 +7,7 @@
 #include <pthread.h>
 #include <sys/wait.h>
 #include "sem_mutex.h"
-#include "mem_checker_header.h"
+#include "common.h"
 
 
 #ifdef MEM_TRACE
@@ -32,8 +32,8 @@ extern int DEL_LINE;
 
 void* operator new(size_t size);
 void* operator new[](size_t size);
-void* operator new(size_t size, char* fileName, int lineNum);
-void* operator new[](size_t size, char* fileName, int lineNum);
+void* operator new(size_t size, const char* fileName, const int lineNum);
+void* operator new[](size_t size, const char* fileName, const int lineNum);
 
 void operator delete(void* address);
 void operator delete[](void* address);
@@ -50,14 +50,14 @@ public:
 	bool erase(void* address, Operation *OP);
 
 private:
-    void parseError(char* file, int lineNum, int err); 
+    void parseError(const char* file, const int lineNum, const int err); 
 
 private:
 	map<void*, Operation> m_mapOP;
 	list<Operation> m_listErrOP;	
 	SemMutex m_mutexMap;
 	int m_msgQueue;		
-	char m_msgPath[FILENAME_LEN];	
+    const char *m_msgPath;
     FILE* m_fp;
 };
 

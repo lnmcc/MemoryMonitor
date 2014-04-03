@@ -7,7 +7,7 @@
 #include <curses.h>
 #include <pthread.h>
 #include <list>
-#include "mem_checker_header.h"
+#include "common.h"
 
 using namespace std;
 
@@ -16,16 +16,16 @@ public:
     MemMonitor();
     virtual ~MemMonitor();
 
-    void init(char* msgPath, int interval);
+    void init(const char* msgPath, const int interval);
     void start();
     void stop();
     void analyseMsg();
     void display();
 
 private:
-    char* parseError(int err);
+    const char* parseError(const int err);
     void initScreen();
-    void warningWin(char* msg);
+    void warningWin(const char* msg);
 
 private:
     static void* analyseRoutine(void* arg);
@@ -33,7 +33,7 @@ private:
 
 private:
     int m_msgQueue;
-    char* m_msgPath;
+    const char* m_msgPath;
     FILE* m_fp;
     pthread_t m_disp_pid;
     pthread_t m_analyse_pid;

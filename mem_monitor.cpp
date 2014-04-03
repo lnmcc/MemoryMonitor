@@ -31,7 +31,7 @@ MemMonitor::~MemMonitor() {
 }
 
 
-void MemMonitor::init(char* msgPath, int interval) {
+void MemMonitor::init(const char* msgPath, const int interval) {
     m_msgPath = msgPath;
     m_interval = interval;   
 
@@ -104,7 +104,7 @@ void* MemMonitor::displayRoutine(void* arg) {
     return NULL;
 }
 
-void MemMonitor::warningWin(char* msg) {
+void MemMonitor::warningWin(const char* msg) {
     const char* prompt = "Press AnyKey to Exit";
     WINDOW* wWin = newwin(4, 80, LINES / 2 + 2 , COLS / 2 - 40);
     box(wWin, '*', '*');
@@ -133,8 +133,8 @@ void MemMonitor::initScreen() {
     refresh();
 }
 
-char* MemMonitor::parseError(int err) {
-      char* prompt = NULL;
+const char* MemMonitor::parseError(const int err) {
+      const char* prompt = NULL;
       switch(err) {
         case EACCES:
 		    cerr << "---EACCES---" << endl;
@@ -189,7 +189,7 @@ void MemMonitor::analyseMsg() {
         sleep(m_interval);
 
         if(msgrcv(m_msgQueue, &recvMsg, sizeof(recvMsg.OP), MSG_TYPE, 0) == -1) {
-            char *prompt = NULL;
+            const char *prompt = NULL;
             prompt = parseError(errno);
             warningWin(prompt);
             endwin();
@@ -234,10 +234,7 @@ void MemMonitor::analyseMsg() {
        if(recvMsg.OP.type == SINGLE_DELETE || recvMsg.OP.type == ARRAY_DELETE) {
            map_iter = m_mapMemStatus.find(recvMsg.OP.address);
            if(map_iter == m_mapMemStatus.end()) {
-
-                //pthread_mutex_unlock(&m_mapMutex);
-
-                char *prompt = "You delete a pointer not traced!";
+                const char *prompt = "You delete a pointer not traced!";
                 warningWin(prompt);
                 endwin();
                 break;  //break while TODO 
@@ -349,20 +346,8 @@ void MemMonitor::display() {
                 disp_list.push_back(*list_iter);
             }
         } //end for
-#if 1 
+ 
         if(m_totalLeak != 0) {
-            /*
-            erase(); 
-            mvprintw(line++, 0, "Interval:%ds, Time:%s", m_interval, ctime(&sysTime));
-            mvprintw(line++, 0, "");		
-            mvprintw(line++, 0, "");
-
-            attrset(A_REVERSE);
-            mvprintw(line++, 0, "%-24s%-12s%-24s%-10s\n",
-                     "FILE", "LINE", "Allocated(Byte)", "Percent(%)");
-            attrset(A_NORMAL);
-            refresh();
-*/
             for (disp_iter = disp_list.begin(); disp_iter != disp_list.end(); disp_iter++) {
                 mvprintw(line++, 0, "%-24s%-12d%-24d%2.2f%%",
                          disp_iter->fileName, disp_iter->lineNum,
@@ -376,9 +361,9 @@ void MemMonitor::display() {
 
             refresh(); 
         }
-#endif
+
         pthread_mutex_unlock(&m_mapMutex);
-    }// end while
+    } // end while
     pthread_mutex_unlock(&m_mapMutex);
 } 
 
@@ -390,7 +375,7 @@ void sighandler(int sig) {
 
 int main(int argc, char *argv[]) {
     int ch = -1;
-    char msgPath[FILENAME_LEN] = {0};
+    const char* msgPath = "/tmp/mem_tracer";
     unsigned int interval = 1;
 
     struct sigaction act;
@@ -412,8 +397,6 @@ int main(int argc, char *argv[]) {
     sigaddset(&act.sa_mask, SIGQUIT);
     act.sa_flags = SA_RESETHAND;
     sigaction(SIGINT, &act, NULL);
-
-    sprintf(msgPath, "/tmp/mem_tracer");
 
     monitor.init(msgPath, interval);
     monitor.start();    
