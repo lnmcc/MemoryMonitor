@@ -194,7 +194,8 @@ MemTracer::MemTracer() {
 }
 
 MemTracer::~MemTracer() {
-    fclose(m_fp);
+    if(m_fp)
+        fclose(m_fp);
 }
 
 void MemTracer::parseError(const char* file, const int lineNum, const int err) {
@@ -238,11 +239,10 @@ void MemTracer::insert(void* address, Operation* OP) {
         cerr << "MemTracer: Error address or operation" << endl;
 		return; 
 	}
-
-	m_mutexMap.lock();
-
 	memcpy((void*) &sendMsg.OP, OP, sizeof(Operation));
 	
+	m_mutex.lock();
+
 	if(m_msgQueue != -1) {
 		
 		if(0 == msgctl(m_msgQueue, IPC_STAT, &msgQueInfo)) {
@@ -257,13 +257,10 @@ void MemTracer::insert(void* address, Operation* OP) {
 			parseError(__FILE__, __LINE__, errno);
 	}
 
-	m_mapOP.insert(pair<void*, Operation>(address, sendMsg.OP));
-
-	m_mutexMap.unlock();
+	m_mutex.unlock();
 }
 
 bool MemTracer::erase(void* address, Operation* OP) {
-	map<void*, Operation>::iterator iter_mapOP;
 	MsgEntity sendMsg;
 	struct msqid_ds	msgQueInfo;
 
@@ -273,12 +270,6 @@ bool MemTracer::erase(void* address, Operation* OP) {
     }
 
 	if(!strcmp(OP->fileName, "") && OP->lineNum == 0) {
-		iter_mapOP = m_mapOP.find(address);
-        if(iter_mapOP == m_mapOP.end()) {
-            cout << "MemTracer: Cannot not find any information for the address" << endl;
-			return false;
-        }
-
 		if(!g_delInfoStack.empty()) {
 			DelInfo del = g_delInfoStack.top();
 			strcpy(OP->fileName, del.fileName);
@@ -287,6 +278,8 @@ bool MemTracer::erase(void* address, Operation* OP) {
 		} 
 	}
 	
+	m_mutex.lock();
+
 	if(m_msgQueue != -1) {
 		if(msgctl(m_msgQueue, IPC_STAT, &msgQueInfo) == 0) {
 			if(msgQueInfo.msg_qbytes > (msgQueInfo.msg_cbytes + sizeof(Operation))) {
@@ -300,28 +293,8 @@ bool MemTracer::erase(void* address, Operation* OP) {
 			parseError(__FILE__, __LINE__, errno);
 	}
 
-	m_mutexMap.lock();
-
-	iter_mapOP = m_mapOP.find(address);
-
-	if(iter_mapOP != m_mapOP.end()) {
-		Operation tmp;
-
-		if(SINGLE_DELETE == OP->type && ARRAY_NEW == iter_mapOP->second.type) {
-			memcpy(&tmp, &(iter_mapOP->second), sizeof(Operation));
-			m_listErrOP.push_back(tmp);
-		}		
-
-		m_mapOP.erase(iter_mapOP);
-
-		m_mutexMap.unlock();
-		return true;
-
-	} else {
-        printf("MemTracer : ***** WARNING: %s: %ld : %p, Delete a pointer cannot find in MAP.******\n", OP->fileName, OP->lineNum , address);
-		m_mutexMap.unlock();
-		return false;
-	}
+	m_mutex.unlock();
+    return true;
 }
 
 #endif

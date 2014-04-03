@@ -53,9 +53,7 @@ private:
     void parseError(const char* file, const int lineNum, const int err); 
 
 private:
-	map<void*, Operation> m_mapOP;
-	list<Operation> m_listErrOP;	
-	SemMutex m_mutexMap;
+	SemMutex m_mutex;
 	int m_msgQueue;		
     const char *m_msgPath;
     FILE* m_fp;
