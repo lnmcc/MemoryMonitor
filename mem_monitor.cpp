@@ -14,7 +14,6 @@
 
 MemMonitor::MemMonitor() {
     m_msgPath = NULL;
-    m_pid = 0;
     m_fp = NULL;
     win = NULL; 
     m_msgQueue = -1;
@@ -26,21 +25,19 @@ MemMonitor::MemMonitor() {
 }
 
 MemMonitor::~MemMonitor() {
-    fclose(m_fp);
+    if(m_fp)
+        fclose(m_fp);
     pthread_mutex_destroy(&m_mapMutex);
 }
 
 
-void MemMonitor::init(char* msgPath, pid_t pid, int interval) {
+void MemMonitor::init(char* msgPath, int interval) {
     m_msgPath = msgPath;
-    m_pid = pid;
     m_interval = interval;   
 
     key_t key = -1;
 
-    sprintf(m_msgPath, "/home/sijiewang/mem_tracer");
-
-     if((m_fp = fopen(m_msgPath, "a+")) == NULL) {
+    if((m_fp = fopen(m_msgPath, "a+")) == NULL) {
         cout << "MemMonitor: Cannot not open message queue file: " << m_msgPath << endl;
         exit(1);
     }
@@ -128,7 +125,7 @@ void MemMonitor::initScreen() {
     cbreak();
     noecho();
     nonl();
-    mvprintw(0, 0, "ProcessID: %d\tInterval: %d s", m_pid, m_interval);
+    mvprintw(0, 0, "Interval: %ds", m_interval);
     attrset(A_REVERSE);
     mvprintw(3, 0, "%-24s%-12s%-24s%-10s\n",
             "File Name", "Line Num", "Allocated(Byte)", "Percent(%)");
@@ -190,7 +187,6 @@ void MemMonitor::analyseMsg() {
 
     while(running) {
         sleep(m_interval);
-        pthread_mutex_lock(&m_mapMutex); 
 
         if(msgrcv(m_msgQueue, &recvMsg, sizeof(recvMsg.OP), MSG_TYPE, 0) == -1) {
             char *prompt = NULL;
@@ -199,6 +195,8 @@ void MemMonitor::analyseMsg() {
             endwin();
             break; //break while
         } 
+
+        pthread_mutex_lock(&m_mapMutex); 
 
         if(recvMsg.OP.type == SINGLE_NEW || recvMsg.OP.type == ARRAY_NEW) {
             map_iter = m_mapMemStatus.find(recvMsg.OP.address);
@@ -310,6 +308,18 @@ void MemMonitor::display() {
         disp_list.clear();
         time(&sysTime);
 
+        erase(); 
+        attrset(A_NORMAL);
+        mvprintw(line++, 0, "Interval:%ds, Time:%s", m_interval, ctime(&sysTime));
+        mvprintw(line++, 0, "");		
+        mvprintw(line++, 0, "");
+        refresh();
+
+        attrset(A_REVERSE);
+        mvprintw(line++, 0, "%-24s%-12s%-24s%-10s\n", "FILE", "LINE", "Allocated(Byte)", "Percent(%)");
+        attrset(A_NORMAL);
+        refresh();
+
         pthread_mutex_lock(&m_mapMutex);
 
         for(map_iter = m_mapMemStatus.begin(); map_iter != m_mapMemStatus.end(); map_iter++) {
@@ -317,9 +327,9 @@ void MemMonitor::display() {
                 if(!strcasecmp(map_iter->second.fileName, disp_iter->fileName)
                    && map_iter->second.lineNum == disp_iter->lineNum) {
                        disp_iter->totalSize += map_iter->second.totalSize;
-                       break; // break for
+                       break; // break inner for
                 }
-            } // end for
+            } // end for 
 
             if(disp_iter == disp_list.end()) {
                 disp_list.push_back(map_iter->second); 
@@ -331,7 +341,7 @@ void MemMonitor::display() {
                 if(!strcasecmp(list_iter->fileName, disp_iter->fileName) 
                   && list_iter->lineNum == disp_iter->lineNum) {
                        disp_iter->totalSize += list_iter->totalSize;
-                       break; // break for
+                       break; // break inner for 
                   }
             } // end for
 
@@ -341,10 +351,9 @@ void MemMonitor::display() {
         } //end for
 #if 1 
         if(m_totalLeak != 0) {
+            /*
             erase(); 
-
-            mvprintw(line++, 0, "ProcessID:%d, Interval:%ds, Time:%s", m_pid, m_interval, ctime(&sysTime));
-
+            mvprintw(line++, 0, "Interval:%ds, Time:%s", m_interval, ctime(&sysTime));
             mvprintw(line++, 0, "");		
             mvprintw(line++, 0, "");
 
@@ -353,7 +362,7 @@ void MemMonitor::display() {
                      "FILE", "LINE", "Allocated(Byte)", "Percent(%)");
             attrset(A_NORMAL);
             refresh();
-
+*/
             for (disp_iter = disp_list.begin(); disp_iter != disp_list.end(); disp_iter++) {
                 mvprintw(line++, 0, "%-24s%-12d%-24d%2.2f%%",
                          disp_iter->fileName, disp_iter->lineNum,
@@ -380,27 +389,23 @@ void sighandler(int sig) {
 }
 
 int main(int argc, char *argv[]) {
-    int ch;
-    char msgPath[FILENAME_LEN];
-    pid_t pid;
+    int ch = -1;
+    char msgPath[FILENAME_LEN] = {0};
+    unsigned int interval = 1;
+
     struct sigaction act;
 
-    if(argc < 3) {
-        cout << "Usage: -p [ProcessID]" << endl;
-        exit(1);
-    }
-
-    while(true) {	
-        if (-1 == (ch = getopt(argc, argv, "p" ))) {
-            break;	
-        }
+    while((ch = getopt(argc, argv, "t:")) != -1) {
         switch(ch) {
-        case 'p':
-            pid = atol(argv[optind]);
+        case 't':
+            interval = atoi(optarg);
             break;
+        case '?':
+            cout << "Usage: " << argv[0] << "[-t seconds] default is 1" << endl;
+            exit(1);
         default:
             break;
-        }	
+        }
     }
 
     act.sa_handler = sighandler;
@@ -408,9 +413,9 @@ int main(int argc, char *argv[]) {
     act.sa_flags = SA_RESETHAND;
     sigaction(SIGINT, &act, NULL);
 
-    sprintf(msgPath, "/home/sijiewang/mem_tracer", pid);
+    sprintf(msgPath, "/tmp/mem_tracer");
 
-    monitor.init(msgPath, pid, 1);
+    monitor.init(msgPath, interval);
     monitor.start();    
 
     return 0;

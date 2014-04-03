@@ -175,7 +175,7 @@ MemTracer::MemTracer() {
 
 	m_fp = NULL;
 
-	sprintf(m_msgPath, "/home/sijiewang/mem_tracer");
+	sprintf(m_msgPath, "/tmp/mem_tracer");
 
 	if((m_fp = fopen(m_msgPath, "a")) == NULL) {
 		cerr << "MemTracer: Cannot open file: " <<  m_msgPath << endl; 

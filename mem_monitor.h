@@ -16,7 +16,7 @@ public:
     MemMonitor();
     virtual ~MemMonitor();
 
-    void init(char* msgPath, pid_t pid, int interval);
+    void init(char* msgPath, int interval);
     void start();
     void stop();
     void analyseMsg();
@@ -35,7 +35,6 @@ private:
     int m_msgQueue;
     char* m_msgPath;
     FILE* m_fp;
-    pid_t m_pid;
     pthread_t m_disp_pid;
     pthread_t m_analyse_pid;
     map<void*, MemStatus> m_mapMemStatus;
