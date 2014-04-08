@@ -36,6 +36,9 @@ void buildStack() {
 }
 
 void* operator new(size_t size) {
+    if(size == 0)
+        size = 1;
+
 	void* address = NULL;
     size_t *p = NULL;
     
@@ -48,6 +51,9 @@ void* operator new(size_t size) {
 }
 
 void* operator new[](size_t size) {
+    if(size == 0)
+        size = 1;
+
 	void* address = NULL;
     size_t *p = NULL;
     
@@ -60,6 +66,9 @@ void* operator new[](size_t size) {
 }
 
 void* operator new(size_t size, const char* fileName, const int lineNum) {
+    if(size == 0)
+        size = 1;
+
 	Operation OP;
 	void* address = NULL;
     size_t *p = NULL;
@@ -83,6 +92,9 @@ void* operator new(size_t size, const char* fileName, const int lineNum) {
 }
 
 void* operator new[](size_t size, const char* fileName, const int lineNum) {
+    if(size == 0)
+        size = 1;
+
 	Operation OP;
 	void *address;
     size_t* p = NULL;
