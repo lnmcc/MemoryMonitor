@@ -12,6 +12,7 @@
 #include <sys/types.h>
 #include <sys/msg.h>
 #include <mqueue.h>
+#include <new>
 
 #include "mem_tracer.h"
 
@@ -35,14 +36,25 @@ void buildStack() {
 	g_delInfoStack.push(lastDel);
 }
 
-void* operator new(size_t size) {
+void* operator new(size_t size) throw(bad_alloc) {
     if(size == 0)
         size = 1;
 
 	void* address = NULL;
     size_t *p = NULL;
     
-    p = (size_t*)malloc(size + 2 * sizeof(size_t));
+    while(true) {
+        p = (size_t*)malloc(size + 2 * sizeof(size_t));
+        if(p)
+            break;
+        new_handler oldHandler = set_new_handler(0);
+        set_new_handler(oldHandler);
+        if(oldHandler)
+            (*oldHandler)();
+        else 
+            throw bad_alloc();
+    }
+    
     p[0] = size;
     p[1] = INNEROP;
     address = (void*)(&p[2]);
@@ -50,14 +62,24 @@ void* operator new(size_t size) {
 	return address;
 }
 
-void* operator new[](size_t size) {
+void* operator new[](size_t size) throw(bad_alloc) {
     if(size == 0)
         size = 1;
 
 	void* address = NULL;
     size_t *p = NULL;
     
-    p = (size_t*)malloc(size + 2 * sizeof(size_t));
+    while(true) {
+        p = (size_t*)malloc(size + 2 * sizeof(size_t));
+        if(p)
+            break;
+        new_handler oldHandler = set_new_handler(0);
+        set_new_handler(oldHandler);
+        if(oldHandler)
+            (*oldHandler)();
+        else
+            throw bad_alloc();
+    }
     p[0] = size;
     p[1] = INNEROP;
     address = (void*)(&p[2]);
@@ -65,7 +87,7 @@ void* operator new[](size_t size) {
 	return address;
 }
 
-void* operator new(size_t size, const char* fileName, const int lineNum) {
+void* operator new(size_t size, const char* fileName, const int lineNum) throw(bad_alloc) {
     if(size == 0)
         size = 1;
 
@@ -73,7 +95,18 @@ void* operator new(size_t size, const char* fileName, const int lineNum) {
 	void* address = NULL;
     size_t *p = NULL;
     
-    p = (size_t*)malloc(size + 2 * sizeof(size_t));
+    while(true) {
+        p = (size_t*)malloc(size + 2 * sizeof(size_t));
+        if(p)
+            break;
+        new_handler oldHandler = set_new_handler(0);
+        set_new_handler(oldHandler);
+        if(oldHandler)
+            (*oldHandler)();
+        else 
+            throw bad_alloc();
+    }
+
     p[0] = size;
     p[1] = OUTEROP;
     address = (void*)(&p[2]);
@@ -91,7 +124,7 @@ void* operator new(size_t size, const char* fileName, const int lineNum) {
 	return address;
 }
 
-void* operator new[](size_t size, const char* fileName, const int lineNum) {
+void* operator new[](size_t size, const char* fileName, const int lineNum) throw(bad_alloc) {
     if(size == 0)
         size = 1;
 
@@ -99,7 +132,18 @@ void* operator new[](size_t size, const char* fileName, const int lineNum) {
 	void *address;
     size_t* p = NULL;
     
-    p = (size_t*)malloc(size + 2 * sizeof(size_t));
+    while(true) {
+        p = (size_t*)malloc(size + 2 * sizeof(size_t));
+         if(p)
+            break;
+        new_handler oldHandler = set_new_handler(0);
+        set_new_handler(oldHandler);
+        if(oldHandler)
+            (*oldHandler)();
+        else 
+            throw bad_alloc();
+    }
+
     p[0] = size;
     p[1] = OUTEROP;
     address = (void*)(&p[2]);
