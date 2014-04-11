@@ -1,3 +1,11 @@
+/* ************************************************************************
+	> File Name: mem_tracer.cpp
+	> Author: lnmcc
+	> Mail: lnmcc@hotmail.com 
+	> Blog: lnmcc.net 
+	> Created Time: 2014年04月11日 星期五 15时08分46秒
+ *********************************************************************** */
+
 #include <iostream>
 #include <stdio.h>
 #include <string.h>
